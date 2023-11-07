@@ -256,7 +256,7 @@ showURL _ _ x = x
 
 
 displayItem :: [Query] -> String -> Markup
-displayItem = highlightItem H.preEscapedString H.string (H.b . H.string)
+displayItem = highlightItem H.string H.preEscapedString H.string (H.b . H.string)
 
 action_server_test_ :: IO ()
 action_server_test_ = do

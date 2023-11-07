@@ -81,7 +81,7 @@ targetResultDisplay link color qs Target{..} = unHTML $ unwords $
         ["-- " ++ targetURL | link]
 
 ansiHighlight :: [Query] -> String -> String
-ansiHighlight = highlightItem id ((dull ++) . (++ rst)) ((bold ++) . (++ rst))
+ansiHighlight = highlightItem id id ((dull ++) . (++ rst)) ((bold ++) . (++ rst))
     where
         dull = setSGRCode [SetColor Foreground Dull Yellow]
         bold = setSGRCode [SetColor Foreground Vivid Yellow]
