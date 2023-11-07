@@ -67,7 +67,7 @@ actionSearch Search{..} = replicateM_ repeat_ $ -- deliberately reopen the datab
 -- | Returns the details printed out when hoogle --info is called
 targetInfo :: Bool -> [Query] -> Target -> String
 targetInfo color qs Target{..} =
-    unlines $ [ unHTML . (if color then highlightItem qs else id) $ targetItem ] ++
+    unlines $ [ unHTML . (if color then ansiHighlight qs else id) $ targetItem ] ++
               [ unwords packageModule | not $ null packageModule] ++
               [ unHTML targetDocs ]
             where packageModule = map fst $ catMaybes [targetPackage, targetModule]
@@ -77,26 +77,15 @@ targetInfo color qs Target{..} =
 targetResultDisplay :: Bool -> Bool -> [Query] -> Target -> String
 targetResultDisplay link color qs Target{..} = unHTML $ unwords $
         map fst (maybeToList targetModule) ++
-        [if color then highlightItem qs targetItem else targetItem] ++
+        [if color then ansiHighlight qs targetItem else targetItem] ++
         ["-- " ++ targetURL | link]
 
-highlightItem:: [Query] -> String -> String
-highlightItem qs x
-    | Just (pre,x) <- stripInfix "<s0>" x, Just (name,post) <- stripInfix "</s0>" x
-        = pre ++ dull ++ highlight (unescapeHTML name) ++ rst ++ post
-    | otherwise = x
+ansiHighlight :: [Query] -> String -> String
+ansiHighlight = highlightItem id ((dull ++) . (++ rst)) ((bold ++) . (++ rst))
     where
         dull = setSGRCode [SetColor Foreground Dull Yellow]
         bold = setSGRCode [SetColor Foreground Vivid Yellow]
         rst = setSGRCode []
-        highlight = mconcatMap (\xs@((b,_):_) -> let s = map snd xs in if b then bold ++ s ++ dull else s) .
-                    groupOn fst . (\x -> zip (mapIsInQueries x) x)
-            where
-                mapIsInQueries :: String -> [Bool]
-                mapIsInQueries (x:xs) | m > 0 = replicate m True ++ (mapIsInQueries $ drop (m - 1) xs)
-                    where m = maximum $ 0 : [length y | QueryName y <- qs, lower y `isPrefixOf` lower (x:xs)]
-                mapIsInQueries (x:xs) = False : mapIsInQueries xs
-                mapIsInQueries [] = []
 
 unHTMLtargetItem :: Target -> Target
 unHTMLtargetItem target = target {targetItem = unHTML $ targetItem target}
