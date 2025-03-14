@@ -53,6 +53,7 @@ actionSearch Search{..} = replicateM_ repeat_ $ -- deliberately reopen the datab
              else if info then do
                  putStr $ targetInfo color' qs $ head res
              else do
+                let toShow = if numbers && not info then addCounter shown else shown
                 if | json -> LBS.putStrLn $ JSON.encode $ maybe id take count $ map unHTMLtargetItem res
                    | jsonl -> mapM_ (LBS.putStrLn . JSON.encode) $ maybe id take count $ map unHTMLtargetItem res
                    | otherwise -> putStr $ unlines $ if numbers then addCounter shown else shown
