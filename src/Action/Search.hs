@@ -31,11 +31,37 @@ import Output.Tags
 import Output.Types
 import Query
 import System.Console.ANSI 
-
+import Data.Word ( Word8 )
+import Data.Colour ( Colour )
+import qualified Data.Colour.Names as CLR
 -- -- generate all
 -- @tagsoup -- generate tagsoup
 -- @tagsoup filter -- search the tagsoup package
 -- filter -- search all
+
+data TerminalColor = ANSI ColorIntensity Color | Palette Word8 | RGB (Colour Float)
+data ColorOptions = ColorOptions { matched :: TerminalColor
+                                 , unmatched :: TerminalColor
+                                 , moduleColor :: TerminalColor }
+
+colorOptions :: ColorOptions
+colorOptions = ColorOptions { matched = ANSI Vivid Magenta
+                            , unmatched = ANSI Dull Magenta
+                            , moduleColor = ANSI Vivid Cyan }
+
+styleString :: SGR -> String -> String
+styleString style = (code ++) . (++ rst)
+    where
+        code = setSGRCode [style]
+        rst = setSGRCode []
+
+fgColor :: TerminalColor -> String -> String
+fgColor (ANSI intensity color) = styleString (SetColor Foreground intensity color)
+fgColor (Palette color)        = styleString (SetPaletteColor Foreground color)
+fgColor (RGB color)            = styleString (SetRGBColor Foreground color)
+
+ansiHighlight :: [Query] -> String -> String
+ansiHighlight = highlightItem id id (fgColor $ unmatched colorOptions) (fgColor $ matched colorOptions)
 
 actionSearch :: CmdLine -> IO ()
 actionSearch Search{..} = replicateM_ repeat_ $ -- deliberately reopen the database each time
@@ -77,16 +103,14 @@ targetInfo color qs Target{..} =
 -- | Bool argument decides whether links are shown
 targetResultDisplay :: Bool -> Bool -> [Query] -> Target -> String
 targetResultDisplay link color qs Target{..} = unHTML $ unwords $
-        map fst (maybeToList targetModule) ++
-        [if color then ansiHighlight qs targetItem else targetItem] ++
+        map (colorModule . fst) (maybeToList targetModule) ++
+        [colorItem] ++
         ["-- " ++ targetURL | link]
-
-ansiHighlight :: [Query] -> String -> String
-ansiHighlight = highlightItem id id ((dull ++) . (++ rst)) ((bold ++) . (++ rst))
     where
-        dull = setSGRCode [SetColor Foreground Dull Yellow]
-        bold = setSGRCode [SetColor Foreground Vivid Yellow]
-        rst = setSGRCode []
+        (colorModule, colorItem)
+          | color     = ( fgColor (moduleColor colorOptions)
+                        , ansiHighlight qs targetItem)
+          | otherwise = (id, targetItem)
 
 unHTMLtargetItem :: Target -> Target
 unHTMLtargetItem target = target {targetItem = unHTML $ targetItem target}
