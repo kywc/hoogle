@@ -39,27 +39,6 @@ import qualified Data.Colour.Names as CLR
 -- @tagsoup filter -- search the tagsoup package
 -- filter -- search all
 
-data TerminalColor = ANSI ColorIntensity Color | Palette Word8 | RGB (Colour Float)
-data ColorOptions = ColorOptions { matched :: TerminalColor
-                                 , unmatched :: TerminalColor
-                                 , moduleColor :: TerminalColor }
-
-colorOptions :: ColorOptions
-colorOptions = ColorOptions { matched = ANSI Vivid Magenta
-                            , unmatched = ANSI Dull Magenta
-                            , moduleColor = ANSI Vivid Cyan }
-
-styleString :: SGR -> String -> String
-styleString style = (code ++) . (++ rst)
-    where
-        code = setSGRCode [style]
-        rst = setSGRCode []
-
-fgColor :: TerminalColor -> String -> String
-fgColor (ANSI intensity color) = styleString (SetColor Foreground intensity color)
-fgColor (Palette color)        = styleString (SetPaletteColor Foreground color)
-fgColor (RGB color)            = styleString (SetRGBColor Foreground color)
-
 ansiHighlight :: [Query] -> String -> String
 ansiHighlight = highlightItem id id (fgColor $ unmatched colorOptions) (fgColor $ matched colorOptions)
 
@@ -79,7 +58,6 @@ actionSearch Search{..} = replicateM_ repeat_ $ -- deliberately reopen the datab
              else if info then do
                  putStr $ targetInfo color' qs $ head res
              else do
-                let toShow = if numbers && not info then addCounter shown else shown
                 if | json -> LBS.putStrLn $ JSON.encode $ maybe id take count $ map unHTMLtargetItem res
                    | jsonl -> mapM_ (LBS.putStrLn . JSON.encode) $ maybe id take count $ map unHTMLtargetItem res
                    | otherwise -> putStr $ unlines $ if numbers then addCounter shown else shown
@@ -94,23 +72,28 @@ actionSearch Search{..} = replicateM_ repeat_ $ -- deliberately reopen the datab
 -- | Returns the details printed out when hoogle --info is called
 targetInfo :: Bool -> [Query] -> Target -> String
 targetInfo color qs Target{..} =
-    unlines $ [ unHTML . (if color then ansiHighlight qs else id) $ targetItem ] ++
-              [ unwords packageModule | not $ null packageModule] ++
-              [ unHTML targetDocs ]
+    unlines $ [ unHTML . colorItem $ targetItem ] ++
+              [ colorModule . unwords $ packageModule | not $ null packageModule] ++
+              [ colorSig . unHTML $ targetDocs ]
             where packageModule = map fst $ catMaybes [targetPackage, targetModule]
+                  (colorModule, colorItem, colorSig)
+                    | color     = ( fgColor (moduleColor colorOptions)
+                                  , ansiHighlight qs
+                                  , fgColor (sigColor colorOptions) )
+                    | otherwise = (id, id, id)
 
 -- | Returns the Target formatted as an item to display in the results
 -- | Bool argument decides whether links are shown
 targetResultDisplay :: Bool -> Bool -> [Query] -> Target -> String
 targetResultDisplay link color qs Target{..} = unHTML $ unwords $
         map (colorModule . fst) (maybeToList targetModule) ++
-        [colorItem] ++
+        [colorItem targetItem] ++
         ["-- " ++ targetURL | link]
     where
         (colorModule, colorItem)
           | color     = ( fgColor (moduleColor colorOptions)
-                        , ansiHighlight qs targetItem)
-          | otherwise = (id, targetItem)
+                        , ansiHighlight qs )
+          | otherwise = (id, id)
 
 unHTMLtargetItem :: Target -> Target
 unHTMLtargetItem target = target {targetItem = unHTML $ targetItem target}

@@ -2,7 +2,8 @@
 
 module General.Util(
     PkgName, ModName,
-    URL,
+    URL, TerminalColor, ColorOptions,
+    matched, unmatched, moduleColor, sigColor, colorOptions, styleString, fgColor,
     pretty, parseMode, applyType, applyFun1, unapplyFun, fromName, fromQName, fromTyVarBind, declNames, isTypeSig,
     fromDeclHead, fromContext, fromIParen, fromInstHead,
     tarballReadFiles,
@@ -57,6 +58,16 @@ import Prelude
 import qualified Network.HTTP.Types.URI as URI
 import qualified Data.ByteString.UTF8 as UTF8
 
+import System.Console.ANSI 
+import Data.Word ( Word8 )
+import Data.Colour ( Colour )
+import qualified Data.Colour.Names as CLR
+
+data TerminalColor = ANSI ColorIntensity Color | Palette Word8 | RGB (Colour Float)
+data ColorOptions = ColorOptions { matched :: TerminalColor
+                                 , unmatched :: TerminalColor
+                                 , moduleColor :: TerminalColor
+                                 , sigColor :: TerminalColor }
 
 type PkgName = Str
 type ModName = Str
@@ -110,7 +121,22 @@ getStatsDebug = do
     withGCStats dump
 #endif
 
+colorOptions :: ColorOptions
+colorOptions = ColorOptions { matched = ANSI Vivid Magenta
+                            , unmatched = ANSI Dull Magenta
+                            , moduleColor = ANSI Vivid Cyan
+                            , sigColor = ANSI Vivid Green }
 
+styleString :: SGR -> String -> String
+styleString style = (code ++) . (++ rst)
+    where
+        code = setSGRCode [style]
+        rst = setSGRCode []
+
+fgColor :: TerminalColor -> String -> String
+fgColor (ANSI intensity color) = styleString (SetColor Foreground intensity color)
+fgColor (Palette color)        = styleString (SetPaletteColor Foreground color)
+fgColor (RGB color)            = styleString (SetRGBColor Foreground color)
 
 exitFail :: String -> IO ()
 exitFail msg = do
